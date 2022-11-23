@@ -6,6 +6,7 @@ import(
 	"fmt"
 	"encoding/csv"
 	"strings"
+	"time"
 )
 
 type Problem struct {
@@ -16,6 +17,7 @@ type Problem struct {
 func main() {
 	// Declare the flag/switches
 	csvFileName := flag.String("csv", "problems.csv", "A CSV file in the format  of 'question,answer'")
+	timeLimit := flag.Int("limit", 30, "Time limit for the quiz in seconds")
 
 	// Parse command line into defined flags
 	flag.Parse()
@@ -42,20 +44,36 @@ func main() {
 	// Convert lines to slice
 	problems := parseLines(lines)
 	
+	// Init timer
+	timer := time.NewTimer(time.Duration(*timeLimit) * time.Second)
+	
 	correct := 0
+
+	problemLoop:
 	for i, p := range problems {
 		// Stdout problem
 		fmt.Printf("Problem #%d: %s = ", i+1, p.Question)
 
-		// Stdin user input
-		var answer string
-		fmt.Scanf("%s", &answer)
+		answerCh := make(chan string)
+		go func() {
+			// Stdin user input
+			var answer string
+			fmt.Scanf("%s", &answer)
+			answerCh <- answer // Send user input to answer channel
+		}() // Put `()` at the end to call this immediatly
 
-		if answer == p.Solution {
-			correct++
+		select {
+		case <-timer.C: // If you get message from timer channel
+			fmt.Println()
+			break problemLoop
+		case answer := <- answerCh: // If you get an answer from the answer channel
+			if answer == p.Solution {
+				correct++
+			}
 		}
 	}
-	fmt.Printf("You scored %d / %d\n", correct, len(problems))
+
+	fmt.Printf("\nYou scored %d / %d\n", correct, len(problems))
 }
 
 func parseLines(lines [][]string) []Problem {
